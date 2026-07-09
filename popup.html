@@ -20,6 +20,21 @@
     <input id="excelFile" type="file" accept=".xlsx">
 </div>
 
+<div class="card">
+    <strong>Mode</strong>
+    <label class="mode-option">
+        <input id="modeAuto" type="radio" name="mode" value="auto" checked>
+        Fill everything automatically
+    </label>
+    <label class="mode-option">
+        <input id="modeSingle" type="radio" name="mode" value="single">
+        Select one PRN only
+    </label>
+    <select id="prnSelect" disabled>
+        <option value="">Select PRN</option>
+    </select>
+</div>
+
 <div class="stats">
     <div class="card">
         <strong>Current PRN</strong>

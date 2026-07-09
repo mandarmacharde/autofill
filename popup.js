@@ -1,6 +1,9 @@
 const websiteElement = document.getElementById("website");
 const excelElement = document.getElementById("excel");
 const excelFileElement = document.getElementById("excelFile");
+const modeAutoElement = document.getElementById("modeAuto");
+const modeSingleElement = document.getElementById("modeSingle");
+const prnSelectElement = document.getElementById("prnSelect");
 const prnElement = document.getElementById("prn");
 const processedElement = document.getElementById("processed");
 const remainingElement = document.getElementById("remaining");
@@ -18,14 +21,75 @@ const NO_PRN_TEXT = "Not Found";
 let excelRows = [];
 let activeTabId = null;
 let statusTimer = null;
+let automationRunning = false;
 
 function setText(element, text) {
     element.innerText = text;
 }
 
 function setButtonStates(isRunning) {
-    startButtonElement.disabled = isRunning || excelRows.length === 0 || !activeTabId;
+    automationRunning = isRunning;
+    const selectedRows = getRowsForSelectedMode();
+
+    startButtonElement.disabled = isRunning || selectedRows.length === 0 || !activeTabId;
     stopButtonElement.disabled = !isRunning || !activeTabId;
+    modeAutoElement.disabled = isRunning;
+    modeSingleElement.disabled = isRunning;
+    prnSelectElement.disabled = isRunning || getSelectedMode() !== "single" || getRowsWithPRN().length === 0;
+}
+
+function getPRN(row) {
+    return row && row.PRN ? String(row.PRN).trim() : "";
+}
+
+function getRowsWithPRN() {
+    return excelRows.filter((row) => getPRN(row));
+}
+
+function getSelectedMode() {
+    return modeSingleElement.checked ? "single" : "auto";
+}
+
+function getRowsForSelectedMode() {
+    if (getSelectedMode() === "auto") {
+        return excelRows;
+    }
+
+    const selectedPRN = prnSelectElement.value;
+
+    if (!selectedPRN) {
+        return [];
+    }
+
+    return excelRows.filter((row) => getPRN(row) === selectedPRN).slice(0, 1);
+}
+
+function updatePRNSelector() {
+    const rowsWithPRN = getRowsWithPRN();
+
+    prnSelectElement.innerHTML = "";
+
+    const placeholderOption = document.createElement("option");
+    placeholderOption.value = "";
+    placeholderOption.innerText = "Select PRN";
+    prnSelectElement.appendChild(placeholderOption);
+
+    for (const row of rowsWithPRN) {
+        const prn = getPRN(row);
+        const option = document.createElement("option");
+
+        option.value = prn;
+        option.innerText = prn;
+        prnSelectElement.appendChild(option);
+    }
+
+    prnSelectElement.disabled = automationRunning || getSelectedMode() !== "single" || rowsWithPRN.length === 0;
+}
+
+function updateModeUI() {
+    prnSelectElement.disabled = automationRunning || getSelectedMode() !== "single" || getRowsWithPRN().length === 0;
+    updateCounts(0, getRowsForSelectedMode().length);
+    setButtonStates(automationRunning);
 }
 
 function updateProgress(processed, total) {
@@ -131,6 +195,7 @@ async function handleExcelSelection(event) {
     if (!file) {
         excelRows = [];
         setText(excelElement, NO_EXCEL_TEXT);
+        updatePRNSelector();
         updateCounts(0, 0);
         setButtonStates(false);
         return;
@@ -140,12 +205,14 @@ async function handleExcelSelection(event) {
         updateStatus("Reading Excel...");
         excelRows = await readExcelFile(file);
         setText(excelElement, `${file.name} (${excelRows.length} rows)`);
-        updateCounts(0, excelRows.length);
+        updatePRNSelector();
+        updateCounts(0, getRowsForSelectedMode().length);
         updateStatus(excelRows.length > 0 ? READY_TEXT : "Excel has no rows");
         setButtonStates(false);
     } catch (error) {
         excelRows = [];
         setText(excelElement, "Could not read Excel");
+        updatePRNSelector();
         updateCounts(0, 0);
         updateStatus("Excel read failed");
         setButtonStates(false);
@@ -155,10 +222,17 @@ async function handleExcelSelection(event) {
 async function loadAutomationStatus() {
     try {
         const state = await sendMessageToTab("GET_AUTOMATION_STATUS");
-        const total = state.total || excelRows.length;
+        const selectedTotal = getRowsForSelectedMode().length;
+        const stateTotal = state.total || 0;
+        const shouldShowSavedRun = state.isRunning || (
+            (state.status === "Done" || state.status === "Stopped") &&
+            stateTotal === selectedTotal
+        );
+        const total = shouldShowSavedRun ? stateTotal : selectedTotal;
+        const processed = shouldShowSavedRun ? state.processed || 0 : 0;
 
         setText(prnElement, state.currentPRN || NO_PRN_TEXT);
-        updateCounts(state.processed || 0, total);
+        updateCounts(processed, total);
         updateStatus(state.status || READY_TEXT);
         setButtonStates(Boolean(state.isRunning));
     } catch (error) {
@@ -184,10 +258,18 @@ async function startAutomation() {
         return;
     }
 
+    const rowsToProcess = getRowsForSelectedMode();
+
+    if (rowsToProcess.length === 0) {
+        updateStatus("Select a PRN first");
+        return;
+    }
+
     try {
         updateStatus("Starting...");
+        updateCounts(0, rowsToProcess.length);
         await sendMessageToTab("START_AUTOMATION", {
-            rows: excelRows
+            rows: rowsToProcess
         });
         setButtonStates(true);
         startStatusPolling();
@@ -207,6 +289,9 @@ async function stopAutomation() {
 
 function bindEvents() {
     excelFileElement.addEventListener("change", handleExcelSelection);
+    modeAutoElement.addEventListener("change", updateModeUI);
+    modeSingleElement.addEventListener("change", updateModeUI);
+    prnSelectElement.addEventListener("change", updateModeUI);
     startButtonElement.addEventListener("click", startAutomation);
     stopButtonElement.addEventListener("click", stopAutomation);
     window.addEventListener("beforeunload", stopStatusPolling);
@@ -214,6 +299,7 @@ function bindEvents() {
 
 async function initPopup() {
     bindEvents();
+    updatePRNSelector();
     updateCounts(0, 0);
     await loadWebsite();
     startStatusPolling();
