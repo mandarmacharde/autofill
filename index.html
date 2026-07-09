@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>FormBot Test Site</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            max-width: 640px;
+            margin: 40px auto;
+            padding: 0 20px;
+            color: #172033;
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            margin-bottom: 8px;
+        }
+
+        .panel {
+            margin-top: 20px;
+            padding: 18px;
+            border: 1px solid #d9deea;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        label {
+            display: block;
+            margin-top: 12px;
+            font-weight: 700;
+        }
+
+        input {
+            width: 100%;
+            margin-top: 6px;
+            padding: 10px;
+            border: 1px solid #b8c0cf;
+            border-radius: 6px;
+            font-size: 15px;
+        }
+
+        button {
+            margin-top: 16px;
+            padding: 10px 14px;
+            border: 0;
+            border-radius: 6px;
+            color: #ffffff;
+            background: #1d6fd6;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .success {
+            margin-top: 14px;
+            padding: 10px;
+            border-radius: 6px;
+            color: #155724;
+            background: #d4edda;
+        }
+
+        .loading {
+            margin-top: 14px;
+            color: #596579;
+            font-weight: 700;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 14px;
+            border-collapse: collapse;
+            background: #ffffff;
+        }
+
+        th,
+        td {
+            padding: 9px;
+            border: 1px solid #d9deea;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        th {
+            color: #596579;
+            background: #f7f8fb;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <h1>Company Test Form</h1>
+    <p>This local page mimics the PRN page and student form.</p>
+
+    <main id="app"></main>
+
+    <section class="panel">
+        <h2>Saved Records</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>PRN</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Course</th>
+                </tr>
+            </thead>
+            <tbody id="savedRecords">
+                <tr>
+                    <td colspan="5">No records saved yet.</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <script>
+        const app = document.getElementById("app");
+        const savedRecordsElement = document.getElementById("savedRecords");
+        const savedRecords = [];
+
+        function renderSavedRecords() {
+            if (savedRecords.length === 0) {
+                savedRecordsElement.innerHTML = `
+                    <tr>
+                        <td colspan="5">No records saved yet.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            savedRecordsElement.innerHTML = savedRecords.map((record) => `
+                <tr>
+                    <td>${record.PRN}</td>
+                    <td>${record.Name}</td>
+                    <td>${record.Email}</td>
+                    <td>${record.Phone}</td>
+                    <td>${record.Course}</td>
+                </tr>
+            `).join("");
+        }
+
+        function addSavedRecord(prn) {
+            savedRecords.push({
+                PRN: prn,
+                Name: document.getElementById("Name").value,
+                Email: document.getElementById("Email").value,
+                Phone: document.getElementById("Phone").value,
+                Course: document.getElementById("Course").value
+            });
+
+            renderSavedRecords();
+        }
+
+        function renderPrnPage() {
+            app.innerHTML = `
+                <section class="panel">
+                    <h2>Enter PRN</h2>
+                    <label for="prn">PRN</label>
+                    <input id="prn" name="PRN" placeholder="PRN" autocomplete="off">
+                    <button id="next">Next</button>
+                    <div id="prnMessage"></div>
+                </section>
+            `;
+
+            const prnInput = document.getElementById("prn");
+            const nextButton = document.getElementById("next");
+
+            function openStudentForm() {
+                const prn = prnInput.value.trim();
+
+                if (!prn) {
+                    return;
+                }
+
+                nextButton.disabled = true;
+                document.getElementById("prnMessage").innerHTML =
+                    `<div class="loading">Loading form for ${prn}...</div>`;
+
+                setTimeout(() => {
+                    history.pushState({ page: "form" }, "", "#form");
+                    renderStudentForm(prn);
+                }, 900);
+            }
+
+            nextButton.addEventListener("click", openStudentForm);
+            prnInput.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    openStudentForm();
+                }
+            });
+        }
+
+        function renderStudentForm(prn) {
+            app.innerHTML = `
+                <section class="panel">
+                    <h2>Student Form</h2>
+                    <p>Loaded PRN: <strong>${prn}</strong></p>
+
+                    <label for="Name">Name</label>
+                    <input id="Name" name="Name" placeholder="Name">
+
+                    <label for="Email">Email</label>
+                    <input id="Email" name="Email" placeholder="Email">
+
+                    <label for="Phone">Phone</label>
+                    <input id="Phone" name="Phone" placeholder="Phone">
+
+                    <label for="Course">Course</label>
+                    <input id="Course" name="Course" placeholder="Course">
+
+                    <label for="ReadonlyExample">Readonly Field</label>
+                    <input id="ReadonlyExample" name="ReadonlyExample" value="FormBot should skip this" readonly>
+
+                    <button id="save">Save</button>
+                    <div id="message"></div>
+                </section>
+            `;
+
+            document.getElementById("save").addEventListener("click", () => {
+                const saveButton = document.getElementById("save");
+
+                saveButton.disabled = true;
+                saveButton.innerText = "Saving...";
+                document.getElementById("message").innerHTML =
+                    `<div class="loading">Saving ${prn}...</div>`;
+
+                setTimeout(() => {
+                    addSavedRecord(prn);
+                    document.getElementById("message").innerHTML =
+                        `<div class="success">Saved ${prn}</div>`;
+                }, 900);
+            });
+        }
+
+        window.addEventListener("popstate", () => {
+            renderPrnPage();
+        });
+
+        renderPrnPage();
+    </script>
+</body>
+</html>

@@ -1,24 +1,56 @@
 <!DOCTYPE html>
 <html>
-
 <head>
+    <meta charset="UTF-8">
     <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
 
-<h2>AutoFill</h2>
+<h2>FormBot</h2>
 
-<button id="checkBtn">
-    Check Current Page
-</button>
-
-<div id="result">
-Waiting...
+<div class="card">
+    <strong>Website</strong>
+    <div id="website">Loading...</div>
 </div>
 
+<div class="card">
+    <strong>Excel</strong>
+    <div id="excel">Not Selected</div>
+    <input id="excelFile" type="file" accept=".xlsx">
+</div>
+
+<div class="stats">
+    <div class="card">
+        <strong>Current PRN</strong>
+        <div id="prn">Not Found</div>
+    </div>
+
+    <div class="card">
+        <strong>Processed</strong>
+        <div id="processed">0</div>
+    </div>
+
+    <div class="card">
+        <strong>Remaining</strong>
+        <div id="remaining">0</div>
+    </div>
+</div>
+
+<div class="card">
+    <strong>Current Status</strong>
+    <div id="status">Ready</div>
+</div>
+
+<progress id="progressBar" value="0" max="100"></progress>
+
+<div class="actions">
+    <button id="startBtn" disabled>Start</button>
+    <button id="stopBtn" disabled>Stop</button>
+</div>
+
+<script src="lib/xlsx.full.min.js"></script>
 <script src="popup.js"></script>
 
 </body>
-
 </html>

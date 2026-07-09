@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AutoFill",
+  "name": "FormBot",
   "version": "1.0.0",
-  "description": "Fill company forms from Excel",
+  "description": "Fill company forms from Excel rows",
 
   "permissions": [
     "storage",
