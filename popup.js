@@ -1,4 +1,3 @@
-const websiteElement = document.getElementById("website");
 const excelElement = document.getElementById("excel");
 const excelFileElement = document.getElementById("excelFile");
 const modeAutoElement = document.getElementById("modeAuto");
@@ -11,6 +10,11 @@ const statusElement = document.getElementById("status");
 const progressBarElement = document.getElementById("progressBar");
 const startButtonElement = document.getElementById("startBtn");
 const stopButtonElement = document.getElementById("stopBtn");
+const columnSelectCard = document.getElementById("columnSelectCard");
+const columnSelect = document.getElementById("columnSelect");
+const confirmColumnBtn = document.getElementById("confirmColumnBtn");
+let pendingExcelRows = null;
+let currentExcelFilename = "";
 
 const READY_TEXT = "Ready";
 const LOADING_TEXT = "Loading...";
@@ -104,7 +108,6 @@ function updateCounts(processed, total) {
 }
 
 function updatePageInfo(info) {
-    setText(websiteElement, info.website || UNSUPPORTED_PAGE_TEXT);
     setText(prnElement, info.prn || NO_PRN_TEXT);
 }
 
@@ -114,7 +117,6 @@ function updateStatus(status) {
 
 function showUnsupportedPage() {
     activeTabId = null;
-    setText(websiteElement, UNSUPPORTED_PAGE_TEXT);
     setText(prnElement, NO_PRN_TEXT);
     updateStatus(UNSUPPORTED_PAGE_TEXT);
     setButtonStates(false);
@@ -155,7 +157,6 @@ function sendMessageToTab(action, payload = {}) {
 }
 
 async function loadWebsite() {
-    setText(websiteElement, LOADING_TEXT);
     updateStatus(LOADING_TEXT);
 
     try {
@@ -172,8 +173,38 @@ async function loadWebsite() {
     }
 }
 
-function normalizeRows(rows) {
-    return rows.filter((row) => row && Object.keys(row).length > 0);
+function normalizeRows(rows, manualPrnKey = null) {
+    const cleanedRows = [];
+    
+    for (const row of rows) {
+        if (!row || Object.keys(row).length === 0) continue;
+        
+        // Find any column header that contains keywords
+        let prnKey = manualPrnKey;
+        if (!prnKey) {
+            prnKey = Object.keys(row).find(key => {
+                const k = key.toLowerCase();
+                return k.includes('prn') || k.includes('purchase') || k.includes('requisition');
+            });
+        }
+        
+        if (prnKey && row[prnKey]) {
+            const rawValue = String(row[prnKey]).trim();
+            
+            // If someone stuffed multiple PRNs into a single cell separated by commas, spaces, or newlines,
+            // we will smartly split them so the extension processes each one individually!
+            const individualPrns = rawValue.split(/[\s,;\n]+/);
+            
+            for (const prn of individualPrns) {
+                // Ensure it's not a stray blank space or junk character (PRNs are generally 6+ characters)
+                if (prn.length > 5) { 
+                    cleanedRows.push({ PRN: prn });
+                }
+            }
+        }
+    }
+    
+    return cleanedRows;
 }
 
 async function readExcelFile(file) {
@@ -184,9 +215,42 @@ async function readExcelFile(file) {
     const firstSheetName = workbook.SheetNames[0];
     const firstSheet = workbook.Sheets[firstSheetName];
 
-    return normalizeRows(XLSX.utils.sheet_to_json(firstSheet, {
-        defval: ""
-    }));
+    const rawRows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+    if (!rawRows || rawRows.length === 0) return [];
+
+    // Attempt auto-detect on the first row's keys
+    const headers = Object.keys(rawRows[0]);
+    let autoDetectKey = headers.find(key => {
+        const k = key.toLowerCase();
+        return k.includes('prn') || k.includes('purchase') || k.includes('requisition');
+    });
+
+    if (autoDetectKey) {
+        columnSelectCard.style.display = "none";
+        return normalizeRows(rawRows, autoDetectKey);
+    } else {
+        // Need manual selection
+        pendingExcelRows = rawRows;
+        currentExcelFilename = file.name;
+        
+        columnSelect.innerHTML = "";
+        headers.forEach(header => {
+            const opt = document.createElement("option");
+            opt.value = header;
+            opt.textContent = header;
+            columnSelect.appendChild(opt);
+        });
+        
+        columnSelectCard.style.display = "block";
+        return [];
+    }
+}
+
+function finishExcelLoad(filename) {
+    setText(excelElement, `${filename} (${excelRows.length} rows)`);
+    updatePRNSelector();
+    updateCounts(0, excelRows.length);
+    setButtonStates(false);
 }
 
 async function handleExcelSelection(event) {
@@ -198,24 +262,26 @@ async function handleExcelSelection(event) {
         updatePRNSelector();
         updateCounts(0, 0);
         setButtonStates(false);
+        columnSelectCard.style.display = "none";
+        pendingExcelRows = null;
         return;
     }
 
     try {
-        updateStatus("Reading Excel...");
+        setText(excelElement, "Reading...");
         excelRows = await readExcelFile(file);
-        setText(excelElement, `${file.name} (${excelRows.length} rows)`);
-        updatePRNSelector();
-        updateCounts(0, getRowsForSelectedMode().length);
-        updateStatus(excelRows.length > 0 ? READY_TEXT : "Excel has no rows");
-        setButtonStates(false);
+        
+        if (excelRows.length > 0) {
+            finishExcelLoad(file.name);
+        } else if (pendingExcelRows) {
+            setText(excelElement, `${file.name} (Awaiting Column)`);
+            setButtonStates(false);
+        } else {
+            setText(excelElement, "No valid data found.");
+        }
     } catch (error) {
-        excelRows = [];
-        setText(excelElement, "Could not read Excel");
-        updatePRNSelector();
-        updateCounts(0, 0);
-        updateStatus("Excel read failed");
-        setButtonStates(false);
+        console.error("Error reading Excel file:", error);
+        setText(excelElement, "Error reading file.");
     }
 }
 
@@ -225,7 +291,7 @@ async function loadAutomationStatus() {
         const selectedTotal = getRowsForSelectedMode().length;
         const stateTotal = state.total || 0;
         const shouldShowSavedRun = state.isRunning || (
-            (state.status === "Done" || state.status === "Stopped") &&
+            (state.status.includes("Done") || state.status.includes("done") || state.status === "Stopped") &&
             stateTotal === selectedTotal
         );
         const total = shouldShowSavedRun ? stateTotal : selectedTotal;
@@ -295,6 +361,21 @@ function bindEvents() {
     startButtonElement.addEventListener("click", startAutomation);
     stopButtonElement.addEventListener("click", stopAutomation);
     window.addEventListener("beforeunload", stopStatusPolling);
+
+    confirmColumnBtn.addEventListener("click", () => {
+        const selectedKey = columnSelect.value;
+        if (selectedKey && pendingExcelRows) {
+            excelRows = normalizeRows(pendingExcelRows, selectedKey);
+            pendingExcelRows = null;
+            columnSelectCard.style.display = "none";
+            
+            if (excelRows.length > 0) {
+                finishExcelLoad(currentExcelFilename);
+            } else {
+                setText(excelElement, "No PRNs found in selected column.");
+            }
+        }
+    });
 }
 
 async function initPopup() {

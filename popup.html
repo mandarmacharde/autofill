@@ -9,15 +9,18 @@
 
 <h2>FormBot</h2>
 
-<div class="card">
-    <strong>Website</strong>
-    <div id="website">Loading...</div>
-</div>
 
 <div class="card">
     <strong>Excel</strong>
     <div id="excel">Not Selected</div>
-    <input id="excelFile" type="file" accept=".xlsx">
+    <input id="excelFile" type="file" accept=".xlsx,.csv">
+</div>
+
+<div class="card" id="columnSelectCard" style="display: none; background-color: #fff3cd; border-color: #ffeeba;">
+    <strong style="color: #856404;">Select PRN Column</strong>
+    <p style="font-size: 12px; margin: 8px 0; color: #856404;">We couldn't automatically detect the column. Please select the correct one:</p>
+    <select id="columnSelect" style="width: 100%; padding: 5px; margin-bottom: 10px;"></select>
+    <button id="confirmColumnBtn" style="width: 100%; background-color: #856404;">Confirm Column</button>
 </div>
 
 <div class="card">

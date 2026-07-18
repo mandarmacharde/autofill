@@ -1,9 +1,20 @@
 const CONFIG = {
-    prnInput: "#prn",
-    saveButton: "#save",
-    nextButton: "#next",
-    backButton: "",
-    successMessage: ".success, .alert-success, [role='status']"
+    prStatusDropdown: ".filters .filter-group:nth-child(1) select",
+    prStatusBlankOption: "",
+
+    purchasingDropdown: ".filters .filter-group:nth-child(2) select",
+    purchasingBlankOption: "",
+
+    requisitionDropdown: ".filters .filter-group:nth-child(3) select",
+    requisitionAllOption: "All",
+
+    searchInput: "#searchInput",
+    searchButton: "#searchBtn",
+    searchClear: "#clearSearch",
+
+    firstRowCheckbox: "#tableBody tr:first-child .checkbox",
+
+    loadingIndicator: ".loading"
 };
 
 const STORAGE_KEY = "formbotAutomationState";
@@ -15,7 +26,8 @@ const DEFAULT_STATE = {
     phase: "idle",
     isRunning: false,
     currentPRN: "",
-    status: "Ready"
+    status: "Ready",
+    filtersConfigured: false
 };
 
 let automationLoopActive = false;
@@ -26,16 +38,9 @@ function cloneDefaultState() {
 
 function getState() {
     const storedState = window.sessionStorage.getItem(STORAGE_KEY);
-
-    if (!storedState) {
-        return cloneDefaultState();
-    }
-
+    if (!storedState) return cloneDefaultState();
     try {
-        return {
-            ...cloneDefaultState(),
-            ...JSON.parse(storedState)
-        };
+        return { ...cloneDefaultState(), ...JSON.parse(storedState) };
     } catch (error) {
         return cloneDefaultState();
     }
@@ -46,30 +51,16 @@ function saveState(state) {
 }
 
 function updateState(changes) {
-    const state = {
-        ...getState(),
-        ...changes
-    };
-
+    const state = { ...getState(), ...changes };
     saveState(state);
     return state;
 }
 
-function getCurrentRow(state) {
-    return state.rows[state.index] || null;
-}
-
-function getCurrentPRN(row) {
-    return row && row.PRN ? String(row.PRN).trim() : "";
-}
-
 function getPageInfo() {
     const state = getState();
-    const prnInput = document.querySelector(CONFIG.prnInput);
-
     return {
         website: window.location.hostname,
-        prn: state.currentPRN || (prnInput ? prnInput.value : ""),
+        prn: state.currentPRN,
         processed: state.processed,
         total: state.rows.length,
         remaining: Math.max(state.rows.length - state.processed, 0),
@@ -77,10 +68,6 @@ function getPageInfo() {
         isRunning: state.isRunning,
         failed: state.failed
     };
-}
-
-function normalizeText(value) {
-    return String(value || "").trim().toLowerCase();
 }
 
 function isWritableInput(element) {
@@ -102,9 +89,7 @@ function setNativeValue(element, value) {
 }
 
 function fillElement(element, value) {
-    if (!isWritableInput(element)) {
-        return false;
-    }
+    if (!isWritableInput(element)) return false;
 
     if (element.tagName === "SELECT") {
         element.value = String(value);
@@ -112,43 +97,22 @@ function fillElement(element, value) {
         setNativeValue(element, String(value));
     }
 
-    element.dispatchEvent(new Event("input", {
-        bubbles: true
-    }));
-    element.dispatchEvent(new Event("change", {
-        bubbles: true
-    }));
-
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
     return true;
 }
 
-function findMatchingField(columnName) {
-    const normalizedColumn = normalizeText(columnName);
-    const fields = document.querySelectorAll("input, textarea, select");
-
-    for (const field of fields) {
-        if (!isWritableInput(field)) {
-            continue;
-        }
-
-        const names = [
-            field.name,
-            field.id,
-            field.placeholder
-        ].map(normalizeText);
-
-        if (names.includes(normalizedColumn)) {
-            return field;
-        }
-    }
-
-    return null;
+function clickElement(element) {
+    element.dispatchEvent(new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        view: window
+    }));
 }
 
 function waitForCondition(checkCondition, timeoutMs = 30000) {
     return new Promise((resolve, reject) => {
         const existingValue = checkCondition();
-
         if (existingValue) {
             resolve(existingValue);
             return;
@@ -156,7 +120,6 @@ function waitForCondition(checkCondition, timeoutMs = 30000) {
 
         const observer = new MutationObserver(() => {
             const value = checkCondition();
-
             if (value) {
                 observer.disconnect();
                 clearTimeout(timeoutId);
@@ -178,89 +141,8 @@ function waitForCondition(checkCondition, timeoutMs = 30000) {
 }
 
 function waitForElement(selector, timeoutMs = 30000) {
+    if (!selector) return Promise.resolve(null);
     return waitForCondition(() => document.querySelector(selector), timeoutMs);
-}
-
-function waitForFormFields(row) {
-    return waitForCondition(() => {
-        if (document.querySelector(CONFIG.saveButton)) {
-            return true;
-        }
-
-        return Object.keys(row).some((columnName) => columnName !== "PRN" && findMatchingField(columnName));
-    });
-}
-
-function waitForSaveComplete(previousUrl, timeoutMs = 30000) {
-    return waitForCondition(() => {
-        const successElement = document.querySelector(CONFIG.successMessage);
-        const urlChanged = window.location.href !== previousUrl;
-        const prnInputReturned = document.querySelector(CONFIG.prnInput);
-
-        return successElement || urlChanged || prnInputReturned;
-    }, timeoutMs);
-}
-
-function clickElement(element) {
-    element.dispatchEvent(new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-        view: window
-    }));
-}
-
-function submitPRN(input) {
-    fillElement(input, input.value);
-
-    if (CONFIG.nextButton) {
-        const nextButton = document.querySelector(CONFIG.nextButton);
-
-        if (nextButton && !nextButton.disabled) {
-            clickElement(nextButton);
-            return;
-        }
-    }
-
-    input.dispatchEvent(new KeyboardEvent("keydown", {
-        key: "Enter",
-        code: "Enter",
-        bubbles: true,
-        cancelable: true
-    }));
-    input.dispatchEvent(new KeyboardEvent("keyup", {
-        key: "Enter",
-        code: "Enter",
-        bubbles: true,
-        cancelable: true
-    }));
-}
-
-function fillMatchingFields(row) {
-    let filledCount = 0;
-
-    for (const [columnName, value] of Object.entries(row)) {
-        if (columnName === "PRN") {
-            continue;
-        }
-
-        const field = findMatchingField(columnName);
-
-        if (field && fillElement(field, value)) {
-            filledCount += 1;
-        }
-    }
-
-    return filledCount;
-}
-
-function completeCurrentRow(state) {
-    return updateState({
-        index: state.index + 1,
-        processed: state.processed + 1,
-        phase: "enter_prn",
-        currentPRN: "",
-        status: "Returning to PRN page..."
-    });
 }
 
 function failCurrentRow(state, prn, error) {
@@ -272,100 +154,114 @@ function failCurrentRow(state, prn, error) {
         }
     ];
 
-    console.error("FormBot failed for PRN:", prn || "Missing PRN", error);
+    console.error("Automation failed for PRN:", prn || "Missing PRN", error);
 
     return updateState({
         index: state.index + 1,
         processed: state.processed + 1,
         failed,
-        phase: "enter_prn",
         currentPRN: "",
         status: `Failed ${prn || "missing PRN"}; continuing...`
     });
 }
 
-async function handleEnterPRNPhase(state) {
-    const row = getCurrentRow(state);
+/**
+ * Configure the dropdown filters before processing PRNs.
+ * Should happen only once.
+ */
+async function configureFilters() {
+    updateState({ status: "Configuring filters..." });
 
-    if (!row) {
-        updateState({
-            isRunning: false,
-            phase: "done",
-            currentPRN: "",
-            status: "Done"
-        });
-        return;
+    if (CONFIG.prStatusDropdown) {
+        updateState({ status: "Selecting PR Status..." });
+        const prStatus = await waitForElement(CONFIG.prStatusDropdown);
+        if (prStatus) fillElement(prStatus, CONFIG.prStatusBlankOption);
     }
 
-    const prn = getCurrentPRN(row);
-
-    if (!prn) {
-        failCurrentRow(state, "", new Error("PRN missing from Excel row"));
-        return;
+    if (CONFIG.purchasingDropdown) {
+        updateState({ status: "Selecting Purchasing Type..." });
+        const purchasing = await waitForElement(CONFIG.purchasingDropdown);
+        if (purchasing) fillElement(purchasing, CONFIG.purchasingBlankOption);
     }
 
-    updateState({
-        currentPRN: prn,
-        status: `Finding PRN box for ${prn}...`
-    });
+    if (CONFIG.requisitionDropdown) {
+        updateState({ status: "Selecting Requisition Date..." });
+        const requisition = await waitForElement(CONFIG.requisitionDropdown);
+        if (requisition) fillElement(requisition, CONFIG.requisitionAllOption);
+    }
 
-    const prnInput = await waitForElement(CONFIG.prnInput);
-    fillElement(prnInput, prn);
-
-    updateState({
-        phase: "fill_form",
-        currentPRN: prn,
-        status: `Submitted PRN ${prn}; waiting for form...`
-    });
-
-    submitPRN(prnInput);
+    updateState({ filtersConfigured: true });
 }
 
-async function handleFillFormPhase(state) {
-    const row = getCurrentRow(state);
-    const prn = getCurrentPRN(row);
+/**
+ * Clears search box and searches for a specific PRN.
+ */
+async function searchPRN(prn) {
+    updateState({ status: `Searching PRN ${prn}...` });
 
-    updateState({
-        currentPRN: prn,
-        status: `Waiting for fields for ${prn}...`
-    });
+    if (CONFIG.searchClear) {
+        const clearBtn = document.querySelector(CONFIG.searchClear);
+        if (clearBtn) clickElement(clearBtn);
+    }
 
-    await waitForFormFields(row);
+    const searchInput = await waitForElement(CONFIG.searchInput);
+    if (!searchInput) {
+        throw new Error("Search input selector not found");
+    }
+    
+    // Fallback if clear button is not present
+    if (!CONFIG.searchClear) {
+        fillElement(searchInput, "");
+    }
 
-    const filledCount = fillMatchingFields(row);
-    const saveButton = await waitForElement(CONFIG.saveButton);
+    fillElement(searchInput, prn);
 
-    updateState({
-        phase: "return_prn",
-        currentPRN: prn,
-        status: `Filled ${filledCount} fields for ${prn}; saving...`
-    });
-
-    const previousUrl = window.location.href;
-    clickElement(saveButton);
-    await waitForSaveComplete(previousUrl);
-}
-
-async function handleReturnPRNPhase(state) {
-    const completedState = completeCurrentRow(state);
-
-    if (CONFIG.backButton) {
-        const backButton = document.querySelector(CONFIG.backButton);
-
-        if (backButton && !backButton.disabled) {
-            clickElement(backButton);
-        } else {
-            window.history.back();
-        }
+    if (CONFIG.searchButton) {
+        const searchBtn = await waitForElement(CONFIG.searchButton);
+        if (searchBtn) clickElement(searchBtn);
     } else {
-        window.history.back();
+        searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
     }
-
-    await waitForElement(CONFIG.prnInput);
-    saveState(completedState);
 }
 
-async function runAutomation() {
+/**
+ * Waits for the loading indicator to disappear and results to appear.
+ */
+async function waitForSearchResults() {
+    await waitForCondition(() => {
+        let isReady = true;
+
+        if (CONFIG.loadingIndicator) {
+            const loading = document.querySelector(CONFIG.loadingIndicator);
+            if (loading) isReady = false;
+        }
+
+        if (isReady && CONFIG.firstRowCheckbox) {
+            const checkbox = document.querySelector(CONFIG.firstRowCheckbox);
+            if (!checkbox) isReady = false;
+        }
+
+        return isReady;
+    });
+}
+
+/**
+ * Ticks the checkbox in the first result row.
+ */
+async function tickFirstRow() {
+    updateState({ status: "Ticking checkbox..." });
+    if (!CONFIG.firstRowCheckbox) return;
+
+    const checkbox = await waitForElement(CONFIG.firstRowCheckbox);
+    if (checkbox && !checkbox.checked) {
+        clickElement(checkbox);
+    }
+}
+
+/**
+ * Main loop: Processes all PRNs from the state.
+ */
+async function processAllPRNs(rows) {
     if (automationLoopActive) {
         return;
     }
@@ -373,43 +269,60 @@ async function runAutomation() {
     automationLoopActive = true;
 
     try {
+        let state = getState();
+
+        if (state.isRunning && !state.filtersConfigured) {
+            await configureFilters();
+        }
+
         while (true) {
-            const state = getState();
+            state = getState();
 
             if (!state.isRunning) {
                 break;
             }
 
             if (state.index >= state.rows.length) {
+                let finalStatus = "All done";
+                if (state.failed && state.failed.length > 0) {
+                    const missedPRNs = state.failed.map(f => f.prn).join(", ");
+                    finalStatus = `Done. Missed: ${missedPRNs}`;
+                }
+
                 updateState({
                     isRunning: false,
                     phase: "done",
                     currentPRN: "",
-                    status: "Done"
+                    status: finalStatus
                 });
                 break;
             }
 
-            try {
-                if (state.phase === "enter_prn") {
-                    await handleEnterPRNPhase(state);
-                } else if (state.phase === "fill_form") {
-                    await handleFillFormPhase(state);
-                } else if (state.phase === "return_prn") {
-                    await handleReturnPRNPhase(state);
-                } else {
-                    updateState({
-                        phase: "enter_prn"
-                    });
-                }
-            } catch (error) {
-                const failedState = failCurrentRow(state, state.currentPRN || getCurrentPRN(getCurrentRow(state)), error);
-                saveState(failedState);
+            const row = state.rows[state.index];
+            const prn = row && row.PRN ? String(row.PRN).trim() : "";
 
-                if (!document.querySelector(CONFIG.prnInput)) {
-                    window.history.back();
-                    await waitForElement(CONFIG.prnInput);
-                }
+            if (!prn) {
+                failCurrentRow(state, "", new Error("PRN missing from Excel row"));
+                continue;
+            }
+
+            try {
+                updateState({
+                    currentPRN: prn,
+                    status: `Processing ${state.index + 1} of ${state.rows.length}...`
+                });
+
+                await searchPRN(prn);
+                await waitForSearchResults();
+                await tickFirstRow();
+
+                updateState({
+                    index: state.index + 1,
+                    processed: state.processed + 1,
+                    currentPRN: ""
+                });
+            } catch (error) {
+                failCurrentRow(state, prn, error);
             }
         }
     } finally {
@@ -422,12 +335,11 @@ function startAutomation(rows) {
         ...cloneDefaultState(),
         rows,
         isRunning: true,
-        phase: "enter_prn",
         status: "Starting..."
     };
 
     saveState(state);
-    runAutomation();
+    processAllPRNs(rows);
 
     return getPageInfo();
 }
@@ -460,6 +372,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return false;
 });
 
+// Auto-resume if extension was reloaded or page refreshed while running
 if (getState().isRunning) {
-    runAutomation();
+    processAllPRNs(getState().rows);
 }

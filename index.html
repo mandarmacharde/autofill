@@ -288,6 +288,25 @@
                 </tbody>
             </table>
         </div>
+
+        <h2 style="margin-top: 40px; margin-bottom: 15px; font-size: 18px; color: #333;">Successfully Processed Items (Testing View)</h2>
+        <div class="table-container" style="margin-bottom: 60px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>PRN</th>
+                        <th>Location</th>
+                        <th>Description</th>
+                        <th>Project def.</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="processedBody">
+                    <tr><td colspan="5" style="text-align: center; color: #999;">Nothing ticked yet.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
     </div>
 
     <div class="footer">
@@ -299,31 +318,69 @@
         const searchBtn = document.getElementById('searchBtn');
         const clearSearch = document.getElementById('clearSearch');
         const tableBody = document.getElementById('tableBody');
+        const processedBody = document.getElementById('processedBody');
+
+        let processedCount = 0;
+        tableBody.addEventListener('change', (e) => {
+            if (e.target && e.target.classList.contains('checkbox') && e.target.checked) {
+                const row = e.target.closest('tr');
+                const prn = row.cells[1].innerText;
+                
+                if (processedCount === 0) {
+                    processedBody.innerHTML = '';
+                }
+                
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td><strong>${prn}</strong></td>
+                    <td>PT India</td>
+                    <td>Customer project</td>
+                    <td>S.9006896</td>
+                    <td style="color: green; font-weight: bold;">Ticked ✓</td>
+                `;
+                processedBody.appendChild(newRow);
+                processedCount++;
+            }
+        });
+
+        const validPRNs = ["1000394815", "1000394816", "1000394817", "1000394818", "1000394819", "1000394820"];
 
         function performSearch() {
             const prn = searchInput.value.trim();
-            if (prn) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td><input type="checkbox" class="checkbox"></td>
-                        <td>1000394816</td>
-                        <td>00010</td>
-                        <td></td>
-                        <td>PT India</td>
-                        <td>LRM:1054 1928UVNS ERT, REC ERG-50</td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                        <td>Customer project</td>
-                        <td>S.9006896</td>
-                        <td>S.9006896.120</td>
-                        <td>23000000</td>
-                        <td>MS S</td>
-                        <td>0,00</td>
-                        <td>Open</td>
-                        <td>08.07.2026</td>
-                    </tr>
-                `;
+            if (validPRNs.includes(prn)) {
+                // Append loading row without destroying the current table contents
+                // This keeps the checked row visible so we can see the workflow!
+                const loadingRow = document.createElement('tr');
+                loadingRow.innerHTML = '<td colspan="17" class="loading" style="text-align:center; background-color: #f8f9fa;">Loading next PRN...</td>';
+                tableBody.appendChild(loadingRow);
+                
+                setTimeout(() => {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td><input type="checkbox" class="checkbox"></td>
+                            <td>${prn}</td>
+                            <td>00010</td>
+                            <td></td>
+                            <td>PT India</td>
+                            <td>LRM:1054 1928UVNS ERT, REC ERG-50</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td>Customer project</td>
+                            <td>S.9006896</td>
+                            <td>S.9006896.120</td>
+                            <td>23000000</td>
+                            <td>MS S</td>
+                            <td>0,00</td>
+                            <td>Open</td>
+                            <td>08.07.2026</td>
+                        </tr>
+                    `;
+                }, 1500);
+            } else if (prn) {
+                tableBody.innerHTML = '<tr><td colspan="17" style="text-align:center;">No records found.</td></tr>';
+            } else {
+                tableBody.innerHTML = '';
             }
         }
 
@@ -337,7 +394,7 @@
 
         clearSearch.addEventListener('click', () => {
             searchInput.value = '';
-            tableBody.innerHTML = '';
+            // Do not clear the table here so the ticked row stays visible during the transition
         });
     </script>
 </body>
