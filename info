@@ -1,0 +1,235 @@
+FORMBOT — EXTENSION COMPLETE REFERENCE
+=========================================
+
+IDENTITY
+--------
+Name:       FormBot
+Version:    1.0.0
+Type:       Chrome Extension (Manifest V3)
+Purpose:    Automatically fill web forms from Excel rows, one row at a time
+
+
+FILE TREE
+---------
+autofill/
+├── manifest.json          # Extension registration & permissions
+├── background.js          # Service worker (empty, unused)
+├── content.js             # Injected into every page — the automation engine (465 lines)
+├── popup.html             # Popup UI layout (71 lines)
+├── popup.js               # Popup logic — Excel reading, messaging, status polling (308 lines)
+├── styles.css             # Popup styling — 320px wide, card layout (117 lines)
+├── index.html             # Local test harness mimicking a target website (247 lines)
+├── test-students.xlsx     # Sample data file
+├── icons/                 # Empty directory (no icons yet)
+└── lib/
+    └── xlsx.full.min.js   # SheetJS library for parsing .xlsx files
+
+
+ARCHITECTURE OVERVIEW
+---------------------
+User clicks extension icon
+        │
+        ▼
+  ┌───────────┐     chrome.tabs.sendMessage     ┌───────────┐
+  │  popup.js  │ ◄────────────────────────────► │ content.js │
+  │  popup.html│     GET_PAGE_INFO              │ (runs on  │
+  │            │     START_AUTOMATION            │  every page)
+  │            │     STOP_AUTOMATION             │           │
+  │            │     GET_AUTOMATION_STATUS       │           │
+  └───────────┘   (polled every 1s)              └───────────┘
+       │                                                 │
+       │ Reads .xlsx via SheetJS                         │ Manipulates
+       │ (first sheet only, headers as keys)             │ the real webpage DOM
+       ▼                                                 ▼
+  test-students.xlsx                            [Target Website]
+
+Communication: popup and content script communicate ONLY through
+chrome.tabs.sendMessage(). They never share code or state directly.
+State is persisted in sessionStorage inside the page — if the page
+reloads, automation resumes automatically.
+
+
+THE DATA FORMAT (EXCEL)
+-----------------------
+- File type: .xlsx only
+- Only the FIRST sheet is read
+- First row MUST be headers (column names)
+- ALL columns become form fields — headers are matched against the
+  webpage's input name, id, or placeholder attributes
+- A "PRN" column is MANDATORY — it is the unique identifier. This
+  column is filled into the PRN input and SKIPPED when filling the form
+- Empty rows are filtered out
+- Null cells default to "" (empty string)
+
+Example row after parsing:
+  { PRN: "101", Name: "John", Email: "john@test.com",
+    Phone: "555-0100", Course: "Computer Science" }
+
+
+THE AUTOMATION LOOP (content.js)
+--------------------------------
+Each row goes through 3 phases in sequence:
+
+PHASE 1 — enter_prn
+  1. Read the PRN from the current row
+  2. Wait for the PRN input element (#prn) to appear on the page
+  3. Fill in the PRN value
+  4. Click the "Next" button (#next), or press Enter if no button exists
+  5. Wait for the form to appear
+
+PHASE 2 — fill_form
+  1. Wait for form fields OR save button to appear
+  2. Loop through every column except "PRN", find matching fields on the
+     page (by name, id, or placeholder), and fill them
+  3. Click the "Save" button (#save)
+  4. Wait for completion — whichever comes first:
+       - success message appears
+       - URL changes
+       - PRN input reappears
+
+PHASE 3 — return_prn
+  1. Increment index and processed count
+  2. Navigate back — either click the configured backButton or
+     call window.history.back()
+  3. Wait for PRN input (#prn) to reappear
+  4. Loop starts again for the next row
+
+ON ANY FAILURE:
+  - The row is recorded in failed[] with the error message
+  - Automation continues to the next row
+  - If PRN input isn't found after the error, tries history.back()
+    as recovery
+
+AUTO-RECOVERY:
+  On page load, content.js checks if automation was running (from
+  sessionStorage). If yes, it calls runAutomation() to resume.
+
+
+CONFIG — THE SINGLE CUSTOMISATION POINT
+----------------------------------------
+Located at the top of content.js (lines 1-7):
+
+  const CONFIG = {
+      prnInput: "#prn",
+      saveButton: "#save",
+      nextButton: "#next",
+      backButton: "",
+      successMessage: ".success, .alert-success, [role='status']"
+  };
+
+  prnInput        CSS selector for the PRN/ID input field
+  saveButton      CSS selector for the save/submit button
+  nextButton      CSS selector for the "go to form" button
+  backButton      CSS selector for "back" button ("" = history.back())
+  successMessage  CSS selector(s) that appear after successful save
+
+Everything else derives from this config and the Excel column headers.
+
+
+FIELD MATCHING ALGORITHM
+------------------------
+For every <input>, <textarea>, <select> on the page (that isn't
+disabled or readonly):
+
+  1. Take the field's name, id, and placeholder attributes
+  2. Normalise them (trim + lowercase)
+  3. Check if ANY of them match the Excel column name (also normalised)
+  4. Return the first match
+
+This means: if your Excel column is "Email", it will match a field with
+name="Email" OR id="Email" OR placeholder="Email".
+
+
+POPUP UI FEATURES
+-----------------
+  Website          Shows the current page's hostname
+  Excel file       Accepts .xlsx only; shows filename + row count
+  Mode — Auto      Processes every row in the sheet
+  Mode — Single    Dropdown to pick one PRN; processes only that row
+  Current PRN      Shows the PRN being processed currently
+  Processed        Counter updated live
+  Remaining        Counter updated live
+  Current Status   Status text stream:
+                     "Finding PRN box for 101..."
+                     "Submitted PRN 101; waiting for form..."
+                     "Waiting for fields for 101..."
+                     "Filled 4 fields for 101; saving..."
+                     "Returning to PRN page..."
+                     "Failed 101; continuing..."
+  Progress bar     0–100% based on processed/total
+  Start / Stop     Buttons disabled appropriately based on state
+
+Status is polled from content.js every 1 second (via setInterval).
+
+
+TIMING / WAIT STRATEGY
+----------------------
+There are NO artificial delays (setTimeout, sleep). All waits use a
+MutationObserver on the entire DOM:
+
+  waitForCondition(checkCondition, timeoutMs = 30000)
+    → Returns a Promise
+    → Resolves when checkCondition() returns truthy
+    → Rejects after 30 seconds if condition never met
+    → Watches: childList, subtree, attributes mutations on
+      document.documentElement
+
+Used in:
+  waitForElement(selector)       — waits for a DOM element to appear
+  waitForFormFields(row)         — waits for save button OR any field
+  waitForSaveComplete(prevUrl)   — waits for success/URL change/PRN input
+
+Default timeout is 30 seconds everywhere.
+
+
+POPUP ↔ CONTENT SCRIPT MESSAGES
+--------------------------------
+  GET_PAGE_INFO          popup sends on open
+  GET_AUTOMATION_STATUS  popup sends every 1 second (polling)
+  START_AUTOMATION       popup sends on Start click, payload: { rows }
+  STOP_AUTOMATION        popup sends on Stop click
+
+  All return: { website, prn, processed, total, remaining, status,
+                isRunning, failed }
+
+
+THE TEST HARNESS (index.html)
+-----------------------------
+A local page that simulates the target website. Open directly in
+browser (file:// or local server).
+
+  PRN page:     #prn input + #next button
+                → 900ms simulated delay
+                → shows student form
+
+  Student form: #Name, #Email, #Phone, #Course inputs
+                + readonly field (should be skipped)
+                + #save button
+                → 900ms simulated delay
+                → success message appears
+                → record saved to table below
+
+  Saved Records table shows all submitted PRN/Name/Email/Phone/Course
+
+
+KEY FILES FOR PORTING TO A NEW WEBSITE
+---------------------------------------
+  content.js:1-7         CONFIG selectors (prnInput, nextButton,
+                          saveButton, backButton, successMessage)
+
+  content.js:125-146     findMatchingField() — add extra attributes
+                          if the site uses aria-label, data-field,
+                          <label for>, etc.
+
+  content.js:93-123      setNativeValue / fillElement — if the site
+                          uses a custom framework that needs special
+                          event dispatching
+
+  content.js:62-64,      Change the hardcoded string "PRN" to the
+  238-254                 actual identifier column name from your Excel
+
+  popup.js:41-46,        Same — change "PRN" to your column name
+  242-249
+
+  manifest.json:13-15,   Narrow "matches" and "host_permissions" from
+  27                      "<all_urls>" to the specific domain

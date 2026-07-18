@@ -1,247 +1,344 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>FormBot Test Site</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorization to Order</title>
     <style>
         * {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         body {
-            max-width: 640px;
-            margin: 40px auto;
-            padding: 0 20px;
-            color: #172033;
-            font-family: Arial, sans-serif;
+            background-color: #f2f5f8; /* Light blue-grey background */
+            color: #333;
+            font-size: 14px;
+            padding-bottom: 60px; /* Space for footer */
         }
 
-        h1 {
-            margin-bottom: 8px;
+        /* Header */
+        header {
+            background-color: #354a5f;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
-        .panel {
-            margin-top: 20px;
-            padding: 18px;
-            border: 1px solid #d9deea;
-            border-radius: 8px;
-            background: #ffffff;
+        .header-left, .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
 
-        label {
-            display: block;
-            margin-top: 12px;
-            font-weight: 700;
-        }
-
-        input {
-            width: 100%;
-            margin-top: 6px;
-            padding: 10px;
-            border: 1px solid #b8c0cf;
-            border-radius: 6px;
+        .header-title {
             font-size: 15px;
+            font-weight: normal;
         }
 
-        button {
-            margin-top: 16px;
-            padding: 10px 14px;
-            border: 0;
-            border-radius: 6px;
-            color: #ffffff;
-            background: #1d6fd6;
-            font-weight: 700;
+        /* Page Content */
+        .page-content {
+            padding: 20px;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: normal;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        /* Filters */
+        .filters {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 25px;
+            padding: 15px;
+            background: #ffffff;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .filter-group label {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .filter-group select {
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            min-width: 150px;
+            background: #fff;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #d9d9d9;
+            margin-bottom: 15px;
+        }
+
+        .tab {
+            padding: 10px 20px;
             cursor: pointer;
+            color: #555;
+            font-weight: 500;
         }
 
-        .success {
-            margin-top: 14px;
-            padding: 10px;
-            border-radius: 6px;
-            color: #155724;
-            background: #d4edda;
+        .tab.active {
+            color: #e55c00;
+            border-bottom: 3px solid #e55c00;
         }
 
-        .loading {
-            margin-top: 14px;
-            color: #596579;
-            font-weight: 700;
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            padding: 2px 10px;
+        }
+
+        .search-box input {
+            border: none;
+            outline: none;
+            padding: 5px;
+            width: 150px;
+        }
+
+        .search-box .clear, .search-box .icon {
+            cursor: pointer;
+            color: #999;
+            margin-left: 5px;
+        }
+
+        /* Table */
+        .table-container {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            overflow-x: auto;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
         table {
             width: 100%;
-            margin-top: 14px;
             border-collapse: collapse;
-            background: #ffffff;
+            white-space: nowrap;
         }
 
-        th,
-        td {
-            padding: 9px;
-            border: 1px solid #d9deea;
+        th, td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #e0e0e0;
+            border-right: 1px solid #e0e0e0;
             text-align: left;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         th {
-            color: #596579;
-            background: #f7f8fb;
-            font-size: 12px;
-            text-transform: uppercase;
+            background-color: #f7f7f7;
+            color: #666;
+            font-weight: 600;
+        }
+
+        th:last-child, td:last-child {
+            border-right: none;
+        }
+
+        .checkbox {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Footer */
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            padding: 10px 20px;
+            border-top: 1px solid #d9d9d9;
+            display: flex;
+            justify-content: flex-end;
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.05);
+        }
+
+        .btn-create {
+            background-color: transparent;
+            color: #e55c00;
+            border: none;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .btn-create:disabled {
+            color: #f9c0a6;
+            cursor: not-allowed;
         }
     </style>
 </head>
 <body>
-    <h1>Company Test Form</h1>
-    <p>This local page mimics the PRN page and student form.</p>
 
-    <main id="app"></main>
+    <header>
+        <div class="header-left">
+            <span>&lt;</span>
+            <span style="font-weight: bold; color: #ff8c00;">LOGO</span>
+            <span class="header-title">Authorization to Order ⌄</span>
+        </div>
+        <div class="header-right">
+            <span>🔍</span>
+            <span>👤</span>
+        </div>
+    </header>
 
-    <section class="panel">
-        <h2>Saved Records</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>PRN</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Course</th>
-                </tr>
-            </thead>
-            <tbody id="savedRecords">
-                <tr>
-                    <td colspan="5">No records saved yet.</td>
-                </tr>
-            </tbody>
-        </table>
-    </section>
+    <div class="page-content">
+        <h1 class="page-title">Create ATO Based on PR Items</h1>
+
+        <div class="filters">
+            <div class="filter-group">
+                <label>PR Status</label>
+                <select>
+                    <option></option>
+                    <option>Open</option>
+                    <option>In Progress</option>
+                    <option>Approved</option>
+                    <option>Rejected</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Purchasing type</label>
+                <select>
+                    <option></option>
+                    <option>Standard</option>
+                    <option>Subcontracting</option>
+                    <option>Consignment</option>
+                    <option>Third-party</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Requisition date</label>
+                <select>
+                    <option>All</option>
+                    <option>Today</option>
+                    <option>Yesterday</option>
+                    <option>Last 7 Days</option>
+                    <option>Last 30 Days</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab">My PRs</div>
+            <div class="tab active">All PRs</div>
+        </div>
+
+        <div class="toolbar">
+            <div class="search-box">
+                <input type="text" value="" id="searchInput">
+                <span class="clear" id="clearSearch">×</span>
+                <span class="icon" id="searchBtn">🔍</span>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Purchase...</th>
+                        <th>Requisn...</th>
+                        <th>External...</th>
+                        <th>Location...</th>
+                        <th>Short Text</th>
+                        <th>Tracking...</th>
+                        <th>Purchase...</th>
+                        <th>Engineer...</th>
+                        <th>Description</th>
+                        <th>Project def.</th>
+                        <th>WBS Ele...</th>
+                        <th>eCl@ss</th>
+                        <th>Business...</th>
+                        <th>PR Budgt</th>
+                        <th>Text</th>
+                        <th>Changed...</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Table data will be injected here by the extension -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer">
+        <button class="btn-create" disabled>Create ATO</button>
+    </div>
 
     <script>
-        const app = document.getElementById("app");
-        const savedRecordsElement = document.getElementById("savedRecords");
-        const savedRecords = [];
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const clearSearch = document.getElementById('clearSearch');
+        const tableBody = document.getElementById('tableBody');
 
-        function renderSavedRecords() {
-            if (savedRecords.length === 0) {
-                savedRecordsElement.innerHTML = `
+        function performSearch() {
+            const prn = searchInput.value.trim();
+            if (prn) {
+                tableBody.innerHTML = `
                     <tr>
-                        <td colspan="5">No records saved yet.</td>
+                        <td><input type="checkbox" class="checkbox"></td>
+                        <td>1000394816</td>
+                        <td>00010</td>
+                        <td></td>
+                        <td>PT India</td>
+                        <td>LRM:1054 1928UVNS ERT, REC ERG-50</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td>Customer project</td>
+                        <td>S.9006896</td>
+                        <td>S.9006896.120</td>
+                        <td>23000000</td>
+                        <td>MS S</td>
+                        <td>0,00</td>
+                        <td>Open</td>
+                        <td>08.07.2026</td>
                     </tr>
                 `;
-                return;
             }
-
-            savedRecordsElement.innerHTML = savedRecords.map((record) => `
-                <tr>
-                    <td>${record.PRN}</td>
-                    <td>${record.Name}</td>
-                    <td>${record.Email}</td>
-                    <td>${record.Phone}</td>
-                    <td>${record.Course}</td>
-                </tr>
-            `).join("");
         }
 
-        function addSavedRecord(prn) {
-            savedRecords.push({
-                PRN: prn,
-                Name: document.getElementById("Name").value,
-                Email: document.getElementById("Email").value,
-                Phone: document.getElementById("Phone").value,
-                Course: document.getElementById("Course").value
-            });
-
-            renderSavedRecords();
-        }
-
-        function renderPrnPage() {
-            app.innerHTML = `
-                <section class="panel">
-                    <h2>Enter PRN</h2>
-                    <label for="prn">PRN</label>
-                    <input id="prn" name="PRN" placeholder="PRN" autocomplete="off">
-                    <button id="next">Next</button>
-                    <div id="prnMessage"></div>
-                </section>
-            `;
-
-            const prnInput = document.getElementById("prn");
-            const nextButton = document.getElementById("next");
-
-            function openStudentForm() {
-                const prn = prnInput.value.trim();
-
-                if (!prn) {
-                    return;
-                }
-
-                nextButton.disabled = true;
-                document.getElementById("prnMessage").innerHTML =
-                    `<div class="loading">Loading form for ${prn}...</div>`;
-
-                setTimeout(() => {
-                    history.pushState({ page: "form" }, "", "#form");
-                    renderStudentForm(prn);
-                }, 900);
+        searchBtn.addEventListener('click', performSearch);
+        
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
             }
-
-            nextButton.addEventListener("click", openStudentForm);
-            prnInput.addEventListener("keydown", (event) => {
-                if (event.key === "Enter") {
-                    event.preventDefault();
-                    openStudentForm();
-                }
-            });
-        }
-
-        function renderStudentForm(prn) {
-            app.innerHTML = `
-                <section class="panel">
-                    <h2>Student Form</h2>
-                    <p>Loaded PRN: <strong>${prn}</strong></p>
-
-                    <label for="Name">Name</label>
-                    <input id="Name" name="Name" placeholder="Name">
-
-                    <label for="Email">Email</label>
-                    <input id="Email" name="Email" placeholder="Email">
-
-                    <label for="Phone">Phone</label>
-                    <input id="Phone" name="Phone" placeholder="Phone">
-
-                    <label for="Course">Course</label>
-                    <input id="Course" name="Course" placeholder="Course">
-
-                    <label for="ReadonlyExample">Readonly Field</label>
-                    <input id="ReadonlyExample" name="ReadonlyExample" value="FormBot should skip this" readonly>
-
-                    <button id="save">Save</button>
-                    <div id="message"></div>
-                </section>
-            `;
-
-            document.getElementById("save").addEventListener("click", () => {
-                const saveButton = document.getElementById("save");
-
-                saveButton.disabled = true;
-                saveButton.innerText = "Saving...";
-                document.getElementById("message").innerHTML =
-                    `<div class="loading">Saving ${prn}...</div>`;
-
-                setTimeout(() => {
-                    addSavedRecord(prn);
-                    document.getElementById("message").innerHTML =
-                        `<div class="success">Saved ${prn}</div>`;
-                }, 900);
-            });
-        }
-
-        window.addEventListener("popstate", () => {
-            renderPrnPage();
         });
 
-        renderPrnPage();
+        clearSearch.addEventListener('click', () => {
+            searchInput.value = '';
+            tableBody.innerHTML = '';
+        });
     </script>
 </body>
 </html>
